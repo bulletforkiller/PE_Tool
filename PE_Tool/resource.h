@@ -13,6 +13,8 @@
 #define IDC_BUTTON_ABOUT                1003
 #define IDC_BUTTON_EXIT                 1004
 #define IDC_BUTTON_ABOUT_EXIT           1005
+#define IDC_BUTTON_ADD_                 1005
+#define IDC_BUTTON_PACKER               1005
 #define IDC_LIST_PROCESSES              1011
 #define IDC_LIST_MODULES                1012
 #define IDC_BUTTON_PE_EXIT              1020

@@ -3,7 +3,9 @@
 #include "Operate_PE.h"
 
 HINSTANCE hInstApp;
-TCHAR pszPeFileName[MAX_NUM] = { 0 };
+TCHAR pszPeFileName[MAX_PATH] = { 0 };		// This is for PE resolver !
+TCHAR pszPacker[MAX_PATH] = { 0 };
+TCHAR pszSrc[MAX_PATH] = { 0 };
 LPVOID lpFileBuffer = NULL;
 DWORD nDetailType;
 
@@ -81,7 +83,7 @@ BOOL CALLBACK DialogMainProc(
 			stFile.hwndOwner = hwnd;
 			stFile.lpstrFilter = szPeFormat;
 			stFile.lpstrFile = pszPeFileName;		// 靠全局变量了 ！！
-			stFile.nMaxFile = MAX_NUM;
+			stFile.nMaxFile = MAX_PATH;
 
 			GetOpenFileName(&stFile);
 		
@@ -89,6 +91,33 @@ BOOL CALLBACK DialogMainProc(
 			DialogBox(hInstApp, MAKEINTRESOURCE(IDD_DIALOG_PE), hwnd, DialogPEProc);
 			return TRUE;
 			// PE this !
+		}
+
+		case IDC_BUTTON_PACKER: {
+			OPENFILENAME stPacker = { 0 };
+			OPENFILENAME stSrc = { 0 };
+			TCHAR tPackerFormat[] = TEXT("PE Files(EXE)\0*.exe;*.dll;*.scr;*.drv;*.sys\0\0");
+			TCHAR tSrcFormat[] = TEXT("Execution Files(EXE)\0*.exe\0\0");
+
+			stPacker.lStructSize = stSrc.lStructSize = sizeof(OPENFILENAME);
+			stSrc.Flags = stPacker.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+			stSrc.hwndOwner = stPacker.hwndOwner = hwnd;
+
+			stPacker.lpstrCustomFilter = tSrcFormat;
+			stSrc.lpstrCustomFilter = tPackerFormat;
+
+			stPacker.nMaxFile = stSrc.nMaxFile = MAX_PATH;
+
+			stPacker.lpstrFile = pszPacker;
+			stSrc.lpstrFile = pszSrc;
+
+			GetOpenFileName(&stPacker);
+			GetOpenFileName(&stSrc);
+
+			MessageBox(hwnd, pszPacker, NULL, NULL);
+			MessageBox(hwnd, pszSrc, NULL, NULL);
+
+			return TRUE;
 		}
 
 		default:
