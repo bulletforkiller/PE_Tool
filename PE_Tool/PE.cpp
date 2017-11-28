@@ -4,6 +4,7 @@
 
 HINSTANCE hInstApp;
 TCHAR pszPeFileName[MAX_NUM] = { 0 };
+LPVOID lpFileBuffer = NULL;
 DWORD nDetailType;
 
 int CALLBACK WinMain(
@@ -380,24 +381,28 @@ BOOL UpdateProcessPrivilege(HANDLE hProcess, LPCTSTR lpPrivilegeName)
 
 BOOL CALLBACK DialogPEProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	LPVOID pPeFileBuffer = NULL;
-
 	switch (uMsg)
 	{
 	case WM_INITDIALOG: {
-		if (!ReadPEFile(pszPeFileName, &pPeFileBuffer))
+		if (_tcscmp(pszPeFileName, TEXT("")) == 0)
+		{
+			EndDialog(hwnd, 0);
+			return TRUE;
+		}
+
+		if (!ReadPEFile(pszPeFileName, &lpFileBuffer))
 		{
 			MessageBox(hwnd, TEXT("无法打开指定的文件！"),TEXT("错误"), NULL);
 			EndDialog(hwnd, 0);
 			return TRUE;
 		}
 
-		ResolveHeader(pPeFileBuffer, hwnd);
-		free(pPeFileBuffer);
+		ResolveHeader(lpFileBuffer, hwnd);
 		return TRUE;
 	}
 
 	case WM_CLOSE: {
+		free(lpFileBuffer);
 		memset(pszPeFileName, 0, MAX_NUM * sizeof(TCHAR));
 		EndDialog(hwnd, 0);
 		return TRUE;
@@ -407,6 +412,7 @@ BOOL CALLBACK DialogPEProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		switch (wParam)
 		{
 		case IDC_BUTTON_PE_EXIT: {
+			free(lpFileBuffer);
 			memset(pszPeFileName, 0, MAX_NUM * sizeof(TCHAR));
 			EndDialog(hwnd, 0);
 			return TRUE;
@@ -464,20 +470,15 @@ BOOL CALLBACK DialogSectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
 BOOL CALLBACK DialogDirectoryProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	LPVOID FileBuffer = NULL;
 	switch (uMsg)
 	{
 	case WM_INITDIALOG: {
 		nDetailType = 0;
-		
-
-		if (!ReadPEFile(pszPeFileName, &FileBuffer)) {
-			MessageBox(hwnd, TEXT("Can't open the pe file!"), TEXT("ERROR!"), NULL);
-			EndDialog(hwnd, 0);
+	
+		if (lpFileBuffer == NULL)
 			return TRUE;
-		}
-		ResolveDirectory(FileBuffer, hwnd);
-		free(FileBuffer);
+
+		ResolveDirectory(lpFileBuffer, hwnd);
 		return TRUE;
 	}
 
@@ -542,20 +543,13 @@ BOOL CALLBACK DialogDirectoryProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 BOOL CALLBACK DialogDetailProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	LPVOID FileBuffer = NULL;
-
 	switch (uMsg)
 	{
 	case WM_INITDIALOG: {
-		if (!ReadPEFile(pszPeFileName, &FileBuffer))
-		{
-			MessageBox(hwnd, TEXT("无法打开PE文件!"), TEXT("错误!"), NULL);
-			EndDialog(hwnd, 0);
+		if (lpFileBuffer == NULL)
 			return TRUE;
-		}
 
-		ResolveDetails(FileBuffer, GetDlgItem(hwnd, IDC_EDIT_DETAIL), nDetailType);
-		free(FileBuffer);
+		ResolveDetails(lpFileBuffer, GetDlgItem(hwnd, IDC_EDIT_DETAIL), nDetailType);
 		return TRUE;
 	}
 
