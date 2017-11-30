@@ -94,28 +94,36 @@ BOOL CALLBACK DialogMainProc(
 		}
 
 		case IDC_BUTTON_PACKER: {
-			OPENFILENAME stPacker = { 0 };
-			OPENFILENAME stSrc = { 0 };
-			TCHAR tPackerFormat[] = TEXT("PE Files(EXE)\0*.exe;*.dll;*.scr;*.drv;*.sys\0\0");
-			TCHAR tSrcFormat[] = TEXT("Execution Files(EXE)\0*.exe\0\0");
+			OPENFILENAME stPacker;
+			memset(&stPacker, 0, sizeof(stPacker));
+			OPENFILENAME stSrc;
+			memset(&stSrc, 0, sizeof(stSrc));
+			//OPENFILENAME stSrc;
+			
+			TCHAR tPackerFilter[] = TEXT("PE Files(*.exe)\0*.exe\0All Files(*.*)\0*.*\0\0");
+			TCHAR tSrcFilter[] = TEXT("PE Files(*.exe;*.dll;*.sys)\0*.exe;*.dll;*.sys\0All Files(*.*)\0*.*\0\0");
 
-			stPacker.lStructSize = stSrc.lStructSize = sizeof(OPENFILENAME);
-			stSrc.Flags = stPacker.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+			stSrc.lStructSize = stPacker.lStructSize = sizeof(OPENFILENAME);
 			stSrc.hwndOwner = stPacker.hwndOwner = hwnd;
-
-			stPacker.lpstrCustomFilter = tSrcFormat;
-			stSrc.lpstrCustomFilter = tPackerFormat;
-
-			stPacker.nMaxFile = stSrc.nMaxFile = MAX_PATH;
+			stPacker.lpstrFilter = tPackerFilter;
+			stSrc.lpstrFilter = tSrcFilter;
 
 			stPacker.lpstrFile = pszPacker;
 			stSrc.lpstrFile = pszSrc;
 
+			stSrc.nMaxFile = stPacker.nMaxFile = MAX_PATH;
+			stPacker.lpstrTitle = TEXT("Please choice the shell program");
+			stSrc.lpstrTitle = TEXT("Please choice the Src program");
+
+			stSrc.Flags = stPacker.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
 			GetOpenFileName(&stPacker);
 			GetOpenFileName(&stSrc);
 
-			MessageBox(hwnd, pszPacker, NULL, NULL);
-			MessageBox(hwnd, pszSrc, NULL, NULL);
+			if (mxPacker(pszPacker, pszSrc))
+				MessageBox(hwnd, TEXT("加壳成功！"), TEXT(" (￣y▽￣)╭ Ohohoho....."), NULL);
+			else
+				MessageBox(hwnd, TEXT("加壳失败！"), TEXT("ε(┬┬﹏┬┬)3"), NULL);
 
 			return TRUE;
 		}

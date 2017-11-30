@@ -13,6 +13,7 @@
 #endif
 
 DWORD ReadPEFile(IN LPTSTR peFile, OUT LPVOID * FileBuffer);
+DWORD WriteBack(LPTSTR Name, LPVOID FileBuffer, size_t size);
 DWORD ResolveHeader(IN LPVOID FileBuffer, IN HWND hDlg);
 DWORD ResolveSection(IN LPVOID FileBuffer, IN HWND hListSection);
 DWORD ResolveDirectory(IN LPVOID FileBuffer, IN HWND hDlg);
@@ -28,3 +29,9 @@ DWORD ResolveIAT(IN LPVOID FileBuffer, IN PIMAGE_DATA_DIRECTORY pData, IN HWND h
 DWORD MemoryPadding(DWORD size, DWORD ruler);
 DWORD RVAtoFOA(LPVOID pFileBuffer, DWORD RVA);
 VOID RecursiveResource(LPVOID pStartOffset, PIMAGE_RESOURCE_DIRECTORY pResourceDir, HWND hText);
+
+// Add Packer!!
+DWORD Encode(LPVOID lpData, DWORD dwSize);
+DWORD mxPacker(LPTSTR ptPacker, LPTSTR ptSrc);
+DWORD AddNewSection(LPVOID lpBuffer, DWORD dwRawSize, DWORD dwInjectedSize, LPVOID * lpOut);
+DWORD ContentInject(LPVOID lpPacker, LPVOID lpData, DWORD dwDataSize);

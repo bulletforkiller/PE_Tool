@@ -12,6 +12,7 @@ DWORD ReadPEFile(IN LPTSTR peFile, OUT LPVOID * FileBuffer)
 	_tfopen_s(&pFile, peFile, TEXT("rb"));
 	if (!pFile) {
 		perror("Can't open the file!");
+		fclose(pFile);
 		return FALSE;
 	}
 
@@ -35,6 +36,27 @@ DWORD ReadPEFile(IN LPTSTR peFile, OUT LPVOID * FileBuffer)
 
 	fclose(pFile);
 	return sFileSize;
+}
+
+DWORD WriteBack(LPTSTR Name, LPVOID FileBuffer, size_t size)
+{
+	FILE *fptr = NULL;
+	_tfopen_s(&fptr, Name, TEXT("wb"));
+	if (!fptr) {
+		perror("Can't open the file to write in!\n");
+		fclose(fptr);
+		return FALSE;
+	}
+
+	if (!(fwrite(FileBuffer, 1, size, fptr)))
+	{
+		perror("内容写入失败！");
+		fclose(fptr);
+		return NULL;
+	}
+
+	fclose(fptr);
+	return size;
 }
 
 DWORD ResolveHeader(IN LPVOID FileBuffer, IN HWND hDlg)
@@ -875,4 +897,166 @@ VOID RecursiveResource(LPVOID pStartOffset, PIMAGE_RESOURCE_DIRECTORY pResourceD
 
 		pResourceDirEntry++;
 	}
+}
+
+DWORD Encode(LPVOID lpData, DWORD dwSize)
+{
+	BYTE bMask = 0x5b;
+	if (lpData == NULL)
+		return FALSE;
+
+	PBYTE pbStart = (PBYTE)lpData;
+	for (DWORD i = 0; i < dwSize; i++)
+		pbStart[i] = pbStart[i] ^ bMask;
+}
+
+DWORD mxPacker(LPTSTR ptPacker, LPTSTR ptSrc)
+{
+	if (ptPacker == TEXT("") || ptSrc == TEXT(""))
+		return FALSE;
+
+	LPVOID lpPackerFile = NULL;
+	LPVOID lpSrcFile = NULL;
+	LPVOID lpInjected = NULL;
+	DWORD dwSrcSize = 0;
+	DWORD dwPackerSize = 0;
+	DWORD dwInjectedSize = 0;
+
+	if (!(dwPackerSize = ReadPEFile(ptPacker, &lpPackerFile)))
+		return FALSE;
+
+	if (!(dwSrcSize = ReadPEFile(ptSrc, &lpSrcFile)))
+	{
+		free(lpPackerFile);
+		return FALSE;
+	}
+
+	Encode(lpSrcFile, dwSrcSize);
+
+	if (!(dwInjectedSize = AddNewSection(lpPackerFile, dwPackerSize, dwSrcSize, &lpInjected)))
+	{
+		free(lpPackerFile);
+		free(lpSrcFile);
+		return FALSE;
+	}
+
+	free(lpPackerFile);
+	ContentInject(lpInjected, lpSrcFile, dwSrcSize);
+	if (!WriteBack(TEXT("D:\\added.exe"), lpInjected, dwInjectedSize))
+	{
+		free(lpSrcFile);
+		free(lpInjected);
+		return FALSE;
+	}
+
+	free(lpSrcFile);
+	free(lpInjected);
+	return TRUE;
+}
+
+DWORD AddNewSection(LPVOID lpBuffer, DWORD dwRawSize, DWORD dwInjectedSize, LPVOID * lpOut)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	PIMAGE_FILE_HEADER pFileHeader = &pNTHeader->FileHeader;
+	PIMAGE_OPTIONAL_HEADER pOptionalHeader = &pNTHeader->OptionalHeader;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionalHeader + pFileHeader->SizeOfOptionalHeader);
+
+	pSectionHeader += pFileHeader->NumberOfSections;
+
+	if (pSectionHeader->SizeOfRawData != 0x0 && pSectionHeader->PointerToRawData != 0x0 && pSectionHeader->Characteristics != 0x0)
+	{
+		pDosHeader->e_lfanew = 0x40;
+		DWORD dwTemp = (DWORD)pSectionHeader - (DWORD)pNTHeader;
+		memcpy((LPVOID)((DWORD)lpBuffer + 0x40), (LPVOID)((DWORD)pNTHeader), dwTemp);
+
+		pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+		pFileHeader = &pNTHeader->FileHeader;
+		pOptionalHeader = &pNTHeader->OptionalHeader;
+		pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionalHeader + pFileHeader->SizeOfOptionalHeader);
+		pSectionHeader += pFileHeader->NumberOfSections;
+	}
+
+	if (pOptionalHeader->SizeOfHeaders - (DWORD)pSectionHeader + (DWORD)(lpBuffer) < 80)
+		return FALSE;
+
+	DWORD dwMemorySize = MemoryPadding(dwInjectedSize, pOptionalHeader->FileAlignment);
+	DWORD dwFileSize = MemoryPadding(dwInjectedSize, pOptionalHeader->SectionAlignment);
+	DWORD dwFinalSize = dwRawSize + dwFileSize;
+
+	memcpy(pSectionHeader->Name, ".Jnva", 8);
+	pSectionHeader->Misc.VirtualSize = dwMemorySize;
+	pSectionHeader->SizeOfRawData = dwFileSize;
+	pSectionHeader->VirtualAddress = pOptionalHeader->SizeOfImage;
+	pSectionHeader->PointerToRawData = (pSectionHeader - 1)->PointerToRawData + (pSectionHeader - 1)->SizeOfRawData;
+	pSectionHeader->Characteristics = 0xC0000020;
+
+	memset(pSectionHeader + 1, 0, 0x50);
+
+	pFileHeader->NumberOfSections += 1;
+	pOptionalHeader->SizeOfImage += dwMemorySize;
+
+	if (!(*lpOut = malloc(dwFinalSize)))
+		return FALSE;
+
+	memset(*lpOut, 0, dwFinalSize);
+	memcpy(*lpOut, lpBuffer, dwRawSize);
+	return dwFinalSize;
+}
+
+DWORD ContentInject(LPVOID lpPacker, LPVOID lpData, DWORD dwDataSize)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpPacker;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	PIMAGE_FILE_HEADER pFileHeader = &pNTHeader->FileHeader;
+	PIMAGE_OPTIONAL_HEADER pOptionalHeader = &pNTHeader->OptionalHeader;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionalHeader + pFileHeader->SizeOfOptionalHeader);
+
+	pSectionHeader += pFileHeader->NumberOfSections - 1;
+
+	LPVOID lpWritein = (LPVOID)(pSectionHeader->PointerToRawData + (DWORD)lpPacker);
+
+	memcpy(lpWritein, lpData, dwDataSize);
+
+	return TRUE;
+}
+
+DWORD SectionInject(LPVOID ptPacker, LPVOID ptData, DWORD dwPackerSize, DWORD dwDataSize, LPVOID * lpInjectedBuffer)
+{
+
+	if (ptPacker == NULL || ptData == NULL)
+		return FALSE;
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)ptPacker;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)ptPacker + pDosHeader->e_lfanew);
+	PIMAGE_FILE_HEADER pFileHeader = &pNTHeader->FileHeader;
+	PIMAGE_OPTIONAL_HEADER pOptionalHeader = &pNTHeader->OptionalHeader;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionalHeader + pFileHeader->SizeOfOptionalHeader);
+
+	pSectionHeader += pFileHeader->NumberOfSections;
+
+	//判断是否还有插入节表的空间
+	if (pOptionalHeader->SizeOfHeaders - ((DWORD)pSectionHeader - (DWORD)ptPacker) < 80)
+		return FALSE;
+
+	memcpy(pSectionHeader->Name, ".Jvna", 6);
+	pSectionHeader->Misc.VirtualSize = MemoryPadding(dwDataSize, pOptionalHeader->SectionAlignment);
+	pSectionHeader->VirtualAddress = pOptionalHeader->SizeOfImage;
+	pSectionHeader->SizeOfRawData = MemoryPadding(dwDataSize, pOptionalHeader->FileAlignment);
+	pSectionHeader->PointerToRawData = (pSectionHeader - 1)->PointerToRawData + (pSectionHeader - 1)->SizeOfRawData;
+	pSectionHeader->Characteristics = 0xC0000020;
+
+	pFileHeader->NumberOfSections += 1;
+	pOptionalHeader->SizeOfImage += pSectionHeader->VirtualAddress;
+
+	if (!(*lpInjectedBuffer = (LPVOID)malloc(dwPackerSize + pSectionHeader->SizeOfRawData)))
+		return FALSE;
+
+	memset(*lpInjectedBuffer, 0, dwPackerSize + pSectionHeader->SizeOfRawData);
+	memcpy(*lpInjectedBuffer, ptPacker, dwPackerSize);
+
+	DWORD dwWriteLocation = (pSectionHeader - 1)->PointerToRawData + (pSectionHeader - 1)->SizeOfRawData;
+	memcpy((LPVOID)((DWORD)*lpInjectedBuffer + dwWriteLocation), ptData, dwDataSize);
+
+	return dwPackerSize + pSectionHeader->SizeOfRawData;
 }
