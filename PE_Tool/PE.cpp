@@ -125,6 +125,9 @@ BOOL CALLBACK DialogMainProc(
 			else
 				MessageBox(hwnd, TEXT("樓褲囮啖ㄐ"), TEXT("汍(房房姊房房)3"), NULL);
 
+
+			memset(pszPacker, 0, sizeof(pszPacker));
+			memset(pszSrc, 0, sizeof(pszSrc));
 			return TRUE;
 		}
 
@@ -350,7 +353,7 @@ VOID SetModuleList(HWND hListProcess, HWND hListModule)
 	}
 
 	ListView_GetItemText(hListProcess, dwRowId, 1, buffer, MAX_NUM);
-	dwPid = _wtoi(buffer);
+	dwPid = _ttoi(buffer);
 
 	HMODULE hMods[MAX_NUM];
 	DWORD cbNeeded;

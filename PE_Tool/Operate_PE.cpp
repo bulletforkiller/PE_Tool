@@ -912,7 +912,7 @@ DWORD Encode(LPVOID lpData, DWORD dwSize)
 
 DWORD mxPacker(LPTSTR ptPacker, LPTSTR ptSrc)
 {
-	if (ptPacker == TEXT("") || ptSrc == TEXT(""))
+	if (!_tcscmp(ptPacker, TEXT("")) || !_tcscmp(ptSrc, TEXT("")))
 		return FALSE;
 
 	LPVOID lpPackerFile = NULL;
